@@ -19,8 +19,18 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
   // (timestamp) axis is the standard fix for overlaying a line and a
   // scatter series together.
   const data = history.dates.map((date, i) => ({ ts: toTs(date), close: history.close[i] })).filter((d) => d.ts !== null);
-  const buys = history.buys.map((b) => ({ ts: toTs(b.date), price: b.price })).filter((d) => d.ts !== null);
-  const sells = history.sells.map((s) => ({ ts: toTs(s.date), price: s.price })).filter((d) => d.ts !== null);
+  const tsValues = data.map((d) => d.ts as number);
+  const [minTs, maxTs] = tsValues.length ? [Math.min(...tsValues), Math.max(...tsValues)] : [-Infinity, Infinity];
+  // Recharts computes a shared numeric axis's "dataMin"/"dataMax" domain
+  // from every series bound to it, not just the Line's — an out-of-range
+  // trade marker (e.g. an April buy showing up on a "1D" chart) silently
+  // stretches the whole axis to fit it, squashing the actual visible price
+  // line into a sliver. A short range shouldn't be trying to plot an old
+  // trade anyway, so this filters markers to the currently displayed
+  // window rather than just clipping their symptom on the axis.
+  const inRange = (ts: number | null) => ts !== null && ts >= minTs && ts <= maxTs;
+  const buys = history.buys.map((b) => ({ ts: toTs(b.date), price: b.price })).filter((d) => inRange(d.ts));
+  const sells = history.sells.map((s) => ({ ts: toTs(s.date), price: s.price })).filter((d) => inRange(d.ts));
 
   const formatTs = (ts: number) =>
     history.intraday
