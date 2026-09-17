@@ -27,6 +27,14 @@ def cache_data(ttl: int = 300):
             cached = store.get(key)
             if cached is not None and now - cached[0] < ttl:
                 return cached[1]
+            # Cache miss: sweep every expired entry (not just this key)
+            # before inserting. Without this, a call with new args (a new
+            # ticker, a new news query, a new date range) is never revisited
+            # once past its TTL, so the store only ever grows — an unbounded
+            # memory leak on a long-lived process instead of a cache.
+            expired = [k for k, (ts, _) in store.items() if now - ts >= ttl]
+            for k in expired:
+                del store[k]
             result = func(*args, **kwargs)
             store[key] = (now, result)
             return result
