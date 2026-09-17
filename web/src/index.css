@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette tokens — see the dataviz skill's validated reference palette.
+   Values are "R G B" triplets (not hex) so Tailwind's rgb(var(--x) / <alpha>)
+   opacity modifiers work. Dark values apply both to the OS-level preference
+   and to an explicit [data-theme="dark"] toggle, matching only one of which
+   should ever be relied on at a time. */
+:root {
+  color-scheme: light;
+  --surface-1: 252 252 251;
+  --page-plane: 249 249 247;
+  --text-primary: 11 11 11;
+  --text-secondary: 82 81 78;
+  --text-muted: 137 135 129;
+  --gridline: 225 224 217;
+  --baseline: 195 194 183;
+  --border-rgb: 11 11 11;
+
+  --series-1: 42 120 214; /* blue */
+  --series-2: 235 104 52; /* orange */
+  --series-3: 27 175 122; /* aqua */
+  --series-4: 237 161 0; /* yellow */
+  --series-5: 232 123 164; /* magenta */
+  --series-6: 0 131 0; /* green */
+  --series-7: 74 58 167; /* violet */
+  --series-8: 227 73 72; /* red */
+
+  --status-good: 12 163 12;
+  --status-warning: 250 178 25;
+  --status-serious: 236 131 90;
+  --status-critical: 208 59 59;
+  --delta-up: 0 99 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-1: 26 26 25;
+    --page-plane: 13 13 13;
+    --text-primary: 255 255 255;
+    --text-secondary: 195 194 183;
+    --text-muted: 137 135 129;
+    --gridline: 44 44 42;
+    --baseline: 56 56 53;
+    --border-rgb: 255 255 255;
+
+    --series-1: 57 135 229;
+    --series-2: 217 89 38;
+    --series-3: 25 158 112;
+    --series-4: 201 133 0;
+    --series-5: 213 81 129;
+    --series-6: 0 131 0;
+    --series-7: 144 133 233;
+    --series-8: 230 103 103;
+
+    --delta-up: 12 163 12;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: 26 26 25;
+  --page-plane: 13 13 13;
+  --text-primary: 255 255 255;
+  --text-secondary: 195 194 183;
+  --text-muted: 137 135 129;
+  --gridline: 44 44 42;
+  --baseline: 56 56 53;
+  --border-rgb: 255 255 255;
+
+  --series-1: 57 135 229;
+  --series-2: 217 89 38;
+  --series-3: 25 158 112;
+  --series-4: 201 133 0;
+  --series-5: 213 81 129;
+  --series-6: 0 131 0;
+  --series-7: 144 133 233;
+  --series-8: 230 103 103;
+
+  --delta-up: 12 163 12;
+}
+
+body {
+  background-color: rgb(var(--page-plane));
+  color: rgb(var(--text-primary));
+  font-variant-numeric: proportional-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
