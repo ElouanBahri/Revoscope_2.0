@@ -32,6 +32,13 @@ class AppState:
         self.revolut = RevolutCsvSource()
         self.binance = BinanceSource(settings)
         self.ibkr = IBKRSource(settings)
+
+    def load_example_portfolio(self) -> None:
+        """Called from main.py's startup hook, not from __init__: this does
+        real file I/O and CSV parsing, which has no business running as a
+        side effect of `import app.state` — before the ASGI app (and
+        uvicorn's own startup machinery) exists yet. Keep module import
+        itself side-effect-free."""
         if EXAMPLE_CSV_PATH.exists():
             self.revolut.load_example_if_empty(str(EXAMPLE_CSV_PATH))
 

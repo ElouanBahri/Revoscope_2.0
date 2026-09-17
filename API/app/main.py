@@ -9,8 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .routers import bonds, datasources, news, portfolio, stock, transactions
+from .state import app_state
 
 app = FastAPI(title="revoscope 2.0 API", version="2.0.0")
+
+
+@app.on_event("startup")
+def load_example_portfolio() -> None:
+    # Best-effort — a bad/missing example file shouldn't stop the app from
+    # serving; see AppState.load_example_portfolio's own try/except.
+    app_state.load_example_portfolio()
 
 app.add_middleware(
     CORSMiddleware,
