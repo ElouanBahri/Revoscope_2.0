@@ -107,7 +107,13 @@ def get_ticker_info(ticker: str) -> dict:
     """
     try:
         return yf.Ticker(to_yahoo_symbol(ticker)).info
-    except Exception:
+    except Exception as exc:
+        # `.info` needs a Yahoo "crumb" token (unlike the plain price-history
+        # endpoint), which is a notoriously flaky mechanism for any
+        # non-browser client — logged rather than silently swallowed so a
+        # real block/outage is visible in the server logs instead of just
+        # showing up as "Unknown" sector / ticker-as-name everywhere.
+        print(f"get_ticker_info({ticker!r}) failed: {exc!r}")
         return {}
 
 

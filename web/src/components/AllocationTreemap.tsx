@@ -8,6 +8,7 @@ interface Node {
   ticker: string;
   size: number;
   unrealizedPct: number | null;
+  isBond: boolean;
 }
 
 function colorForPct(p: number | null): string {
@@ -23,8 +24,19 @@ function colorForPct(p: number | null): string {
   return `rgb(var(${variable}) / ${opacity})`;
 }
 
+/** "Company Name (TICKER)", truncating the name (never the ticker) to fit
+ * the cell's actual pixel width — the ticker alone isn't informative enough
+ * on its own, so it's always kept, in brackets, alongside the real name. */
+function cellLabel(name: string, ticker: string, width: number): string {
+  const full = `${name} (${ticker})`;
+  const maxChars = Math.max(6, Math.floor(width / 6.5));
+  if (full.length <= maxChars) return full;
+  const maxNameChars = Math.max(3, maxChars - ticker.length - 4);
+  return `${name.slice(0, maxNameChars).trimEnd()}… (${ticker})`;
+}
+
 function CustomCell(props: any) {
-  const { x, y, width, height, name, ticker, unrealizedPct } = props;
+  const { x, y, width, height, name, ticker, unrealizedPct, isBond, onSelect } = props;
   if (width < 2 || height < 2) return null;
   // Recharts' Treemap calls this content renderer for internal layout
   // nodes too (e.g. the implicit root), not just our actual data leaves —
@@ -33,7 +45,7 @@ function CustomCell(props: any) {
   if (!name || !ticker) return null;
   const showLabel = width > 55 && height > 32;
   return (
-    <g>
+    <g onClick={() => onSelect?.(ticker, isBond)} style={{ cursor: "pointer" }}>
       <rect
         x={x}
         y={y}
@@ -46,7 +58,7 @@ function CustomCell(props: any) {
       />
       {showLabel && (
         <text x={x + 8} y={y + 18} fontSize={12} fontWeight={600} fill={textPrimaryOnColor}>
-          {name.length > 18 ? `${ticker}` : name}
+          {cellLabel(name, ticker, width)}
         </text>
       )}
       {showLabel && (
@@ -69,14 +81,27 @@ function ChartTooltip({ active, payload }: any) {
       </div>
       <div className="mt-1 text-ink-secondary">Market value: {money(d.size)}</div>
       <div className="text-ink-secondary">Unrealized: {pct(d.unrealizedPct)}</div>
+      <div className="mt-1 text-[10px] text-ink-muted">Click for details</div>
     </div>
   );
 }
 
-export function AllocationTreemap({ holdings }: { holdings: Holding[] }) {
+export function AllocationTreemap({
+  holdings,
+  onSelect,
+}: {
+  holdings: Holding[];
+  onSelect: (ticker: string, isBond: boolean) => void;
+}) {
   const data: Node[] = holdings
     .filter((h) => h.market_value !== null)
-    .map((h) => ({ name: h.name, ticker: h.ticker, size: h.market_value as number, unrealizedPct: h.unrealized_pct }));
+    .map((h) => ({
+      name: h.name,
+      ticker: h.ticker,
+      size: h.market_value as number,
+      unrealizedPct: h.unrealized_pct,
+      isBond: h.is_bond,
+    }));
 
   if (data.length === 0) {
     return <p className="text-sm text-ink-secondary">No live prices available yet for an allocation chart.</p>;
@@ -84,7 +109,13 @@ export function AllocationTreemap({ holdings }: { holdings: Holding[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <Treemap data={data} dataKey="size" stroke={surface} content={<CustomCell />} isAnimationActive={false}>
+      <Treemap
+        data={data}
+        dataKey="size"
+        stroke={surface}
+        content={<CustomCell onSelect={onSelect} />}
+        isAnimationActive={false}
+      >
         <Tooltip content={<ChartTooltip />} />
       </Treemap>
     </ResponsiveContainer>

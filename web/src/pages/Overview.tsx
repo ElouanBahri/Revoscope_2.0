@@ -71,8 +71,13 @@ export function Overview() {
         </p>
       )}
 
-      <Card title="Allocation">
-        {holdings.data && <AllocationTreemap holdings={holdings.data} />}
+      <Card title="Allocation" caption="Click a holding for its full detail page.">
+        {holdings.data && (
+          <AllocationTreemap
+            holdings={holdings.data}
+            onSelect={(ticker, isBond) => navigate(isBond ? `/bonds/${ticker}` : `/stocks/${ticker}`)}
+          />
+        )}
       </Card>
 
       {benchmark.data && (
