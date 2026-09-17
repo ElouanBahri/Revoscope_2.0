@@ -1,7 +1,7 @@
 import { ResponsiveContainer, Treemap, Tooltip } from "recharts";
 import type { Holding } from "../types";
 import { money, pct } from "../format";
-import { surface, textPrimaryOnColor } from "../palette";
+import { surface } from "../palette";
 
 interface Node {
   name: string;
@@ -16,13 +16,16 @@ const GRADIENT_RANGE = 30; // ±30% unrealized maps to the fully-saturated ends
 /** Diverging by P&L polarity, using the reserved status colors (gain = good,
  * loss = critical) rather than the generic blue<->red diverging pair — P&L
  * sign is a state signal here, the case the status palette exists for.
- * A real color-mix blend (full saturation throughout) rather than varying
- * opacity over the dark card background, which read as washed-out/muted. */
+ * Blends through a neutral gray at 0%, per the palette's own diverging-scale
+ * rule, instead of mixing red directly into green — that direct mix passes
+ * through a muddy olive/brown in the middle that's both ugly and low-
+ * contrast for the label text sitting on top of it. */
 function colorForPct(p: number | null): string {
   if (p === null || Number.isNaN(p)) return "rgb(var(--text-muted))";
   const clamped = Math.max(-GRADIENT_RANGE, Math.min(GRADIENT_RANGE, p));
-  const goodShare = ((clamped + GRADIENT_RANGE) / (2 * GRADIENT_RANGE)) * 100;
-  return `color-mix(in srgb, rgb(var(--status-critical)) ${100 - goodShare}%, rgb(var(--status-good)) ${goodShare}%)`;
+  const t = (Math.abs(clamped) / GRADIENT_RANGE) * 100; // 0 at center, 100 at the extreme
+  const pole = clamped >= 0 ? "--status-good" : "--status-critical";
+  return `color-mix(in srgb, rgb(var(--gridline)) ${100 - t}%, rgb(var(${pole})) ${t}%)`;
 }
 
 /** "Company Name (TICKER)", truncating the name (never the ticker) to fit
@@ -58,12 +61,30 @@ function CustomCell(props: any) {
         rx={4}
       />
       {showLabel && (
-        <text x={x + 8} y={y + 18} fontSize={12} fontWeight={600} fill={textPrimaryOnColor}>
+        <text
+          x={x + 8}
+          y={y + 18}
+          fontSize={12}
+          fontWeight={700}
+          fill="#fff"
+          stroke="rgba(0,0,0,0.6)"
+          strokeWidth={3}
+          paintOrder="stroke"
+        >
           {cellLabel(name, ticker, width)}
         </text>
       )}
       {showLabel && (
-        <text x={x + 8} y={y + 34} fontSize={11} fill={textPrimaryOnColor} opacity={0.8}>
+        <text
+          x={x + 8}
+          y={y + 34}
+          fontSize={11}
+          fontWeight={600}
+          fill="#fff"
+          stroke="rgba(0,0,0,0.6)"
+          strokeWidth={3}
+          paintOrder="stroke"
+        >
           {pct(unrealizedPct)}
         </text>
       )}
