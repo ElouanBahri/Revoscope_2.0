@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAsync } from "../hooks";
@@ -9,12 +9,13 @@ import { BetaScatterChart } from "../components/BetaScatterChart";
 import { ComparisonLineChart } from "../components/ComparisonLineChart";
 import { Table } from "../components/Table";
 import { money, pct, qty, shortDate } from "../format";
-import type { Trade } from "../types";
+import { PRICE_HISTORY_RANGES, type PriceHistoryRange, type Trade } from "../types";
 
 export function StockDetail() {
   const { ticker } = useParams();
   const navigate = useNavigate();
   const list = useAsync(() => api.stockList(), []);
+  const [range, setRange] = useState<PriceHistoryRange>("6M");
 
   useEffect(() => {
     if (!ticker && list.data && list.data.length > 0) {
@@ -25,7 +26,7 @@ export function StockDetail() {
   const detail = useAsync(() => (ticker ? api.stockDetail(ticker) : Promise.resolve(null)), [ticker]);
   const beta = useAsync(() => (ticker ? api.stockBeta(ticker) : Promise.resolve(null)), [ticker]);
   const sinceInvested = useAsync(() => (ticker ? api.stockSinceInvested(ticker) : Promise.resolve(null)), [ticker]);
-  const priceHistory = useAsync(() => (ticker ? api.stockPriceHistory(ticker) : Promise.resolve(null)), [ticker]);
+  const priceHistory = useAsync(() => (ticker ? api.stockPriceHistory(ticker, range) : Promise.resolve(null)), [ticker, range]);
   const trades = useAsync(() => (ticker ? api.stockTrades(ticker) : Promise.resolve(null)), [ticker]);
 
   if (list.data && list.data.length === 0) {
@@ -129,11 +130,26 @@ export function StockDetail() {
         </Card>
       )}
 
-      {priceHistory.data && (
-        <Card title={`${ticker} price history with your trades`}>
-          <PriceHistoryChart history={priceHistory.data} />
-        </Card>
-      )}
+      <Card
+        title={`${ticker} price history with your trades`}
+        action={
+          <div className="flex gap-0.5 rounded-lg border border-ink-primary/10 p-0.5">
+            {PRICE_HISTORY_RANGES.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                  range === r ? "bg-series-1 text-white" : "text-ink-secondary hover:bg-ink-primary/5"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {priceHistory.data ? <PriceHistoryChart history={priceHistory.data} /> : <p className="text-sm text-ink-secondary">Loading…</p>}
+      </Card>
 
       {trades.data && (
         <Card title="Trade history">

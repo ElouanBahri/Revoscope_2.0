@@ -12,6 +12,22 @@ import time
 import pandas as pd
 import yfinance as yf
 
+# Stock Detail's 1D/5D/1M/... range buttons, mapped to yfinance's own
+# (period, interval) strings. Short ranges need intraday bars (a "1D" chart
+# with one point per day is useless); long ranges step up to weekly/monthly
+# bars so a 5-10 year window doesn't ship thousands of daily points for no
+# visual benefit.
+PRICE_HISTORY_RANGES: dict[str, tuple[str, str]] = {
+    "1D": ("1d", "5m"),
+    "5D": ("5d", "15m"),
+    "1M": ("1mo", "1d"),
+    "6M": ("6mo", "1d"),
+    "YTD": ("ytd", "1d"),
+    "1Y": ("1y", "1d"),
+    "5Y": ("5y", "1wk"),
+    "MAX": ("max", "1mo"),
+}
+
 from ..cache import cache_data
 from .fx import get_latest_usd_rate, get_usd_rate_series
 
@@ -183,22 +199,36 @@ def get_company_names(tickers: tuple[str, ...]) -> dict[str, str]:
 
 
 @cache_data(ttl=3600)
-def get_price_history(ticker: str, period: str = "6mo", start: str | None = None) -> pd.DataFrame:
-    """Daily close-price history for one ticker in USD, or an empty
-    DataFrame if unavailable. Pass `start` (as 'YYYY-MM-DD') for a fixed
-    start date instead of a relative `period` — used for since-investment
-    and beta comparisons against a fixed benchmark window.
+def get_price_history(ticker: str, period: str = "6mo", start: str | None = None, interval: str = "1d") -> pd.DataFrame:
+    """Close-price history for one ticker in USD, or an empty DataFrame if
+    unavailable. Pass `start` (as 'YYYY-MM-DD') for a fixed start date
+    instead of a relative `period` — used for since-investment and beta
+    comparisons against a fixed benchmark window. `interval` matches
+    yfinance's own strings ("1d", "5m", "15m", "1wk", "1mo", ...) — used for
+    the Stock Detail chart's 1D/5D range buttons, which need intraday bars
+    rather than one point per day.
 
     A non-USD-listed ticker (e.g. a Xetra ETF quoted in EUR) is converted
-    day-by-day using that day's actual exchange rate, not one flat rate, so
-    the shape of the return series isn't distorted by FX drift over the
-    window — this matters for beta/backtest comparisons, not just the
-    current value.
+    using that day's actual exchange rate (not one flat rate) at each row's
+    own calendar day, so the shape of the return series isn't distorted by
+    FX drift over the window — this matters for beta/backtest comparisons,
+    not just the current value, and still applies correctly to intraday
+    rows since the FX series is daily and each row just carries forward its
+    day's rate.
     """
     try:
         yf_ticker = yf.Ticker(to_yahoo_symbol(ticker))
-        history = yf_ticker.history(start=start) if start else yf_ticker.history(period=period)
-        df = history.reset_index()[["Date", "Close"]].dropna(subset=["Close"])
+        history = (
+            yf_ticker.history(start=start, interval=interval)
+            if start
+            else yf_ticker.history(period=period, interval=interval)
+        )
+        history = history.reset_index()
+        # Intraday intervals (<1d) come back with the index column named
+        # "Datetime" instead of "Date" — normalize so the rest of this
+        # function (and every caller) doesn't need to know the difference.
+        date_col = "Datetime" if "Datetime" in history.columns else "Date"
+        df = history[[date_col, "Close"]].rename(columns={date_col: "Date"}).dropna(subset=["Close"])
         df["Date"] = _strip_tz(df["Date"])
 
         currency = (get_ticker_info(ticker).get("currency") or "USD").upper()

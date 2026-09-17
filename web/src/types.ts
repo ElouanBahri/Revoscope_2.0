@@ -91,7 +91,11 @@ export interface PriceHistory {
   close: (number | null)[];
   buys: PriceHistoryPoint[];
   sells: PriceHistoryPoint[];
+  intraday: boolean;
 }
+
+export const PRICE_HISTORY_RANGES = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"] as const;
+export type PriceHistoryRange = (typeof PRICE_HISTORY_RANGES)[number];
 
 export interface Trade {
   date: string | null;

@@ -22,6 +22,11 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
   const buys = history.buys.map((b) => ({ ts: toTs(b.date), price: b.price })).filter((d) => d.ts !== null);
   const sells = history.sells.map((s) => ({ ts: toTs(s.date), price: s.price })).filter((d) => d.ts !== null);
 
+  const formatTs = (ts: number) =>
+    history.intraday
+      ? new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      : shortDate(new Date(ts).toISOString());
+
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
@@ -31,7 +36,7 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
           type="number"
           scale="time"
           domain={["dataMin", "dataMax"]}
-          tickFormatter={(ts: number) => shortDate(new Date(ts).toISOString())}
+          tickFormatter={formatTs}
           tick={{ fontSize: 11, fill: textMuted }}
           tickLine={false}
           axisLine={{ stroke: gridline }}
@@ -46,7 +51,7 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
           tickFormatter={(v: number) => `$${v.toFixed(0)}`}
         />
         <Tooltip
-          labelFormatter={(ts: number) => shortDate(new Date(ts).toISOString())}
+          labelFormatter={formatTs}
           formatter={(v: number) => money(v)}
           contentStyle={{ fontSize: 12, borderRadius: 8 }}
         />

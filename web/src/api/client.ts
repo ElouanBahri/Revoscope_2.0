@@ -66,8 +66,8 @@ export const api = {
   stockBeta: (ticker: string) => request<StockBeta | null>(`/stocks/${encodeURIComponent(ticker)}/beta`),
   stockSinceInvested: (ticker: string) =>
     request<SinceInvested | null>(`/stocks/${encodeURIComponent(ticker)}/since-invested`),
-  stockPriceHistory: (ticker: string) =>
-    request<PriceHistory>(`/stocks/${encodeURIComponent(ticker)}/price-history`),
+  stockPriceHistory: (ticker: string, range: string) =>
+    request<PriceHistory>(`/stocks/${encodeURIComponent(ticker)}/price-history${qs({ range })}`),
   stockTrades: (ticker: string) => request<Trade[]>(`/stocks/${encodeURIComponent(ticker)}/trades`),
 
   bondList: () => request<string[]>("/bonds"),

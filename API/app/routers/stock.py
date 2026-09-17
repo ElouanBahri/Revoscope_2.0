@@ -10,7 +10,7 @@ from ..deps import get_portfolio_context
 from ..services.aggregate import PortfolioContext
 from ..services.parser import BUY_TYPES, SELL_TYPES
 from ..services.performance import BENCHMARK_NAME, BENCHMARK_TICKER, compute_beta, price_return_index
-from ..services.prices import get_price_history
+from ..services.prices import PRICE_HISTORY_RANGES, get_price_history
 from ..utils import safe_float, timestamp_to_str
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
@@ -112,11 +112,12 @@ def stock_since_invested(ticker: str, ctx: PortfolioContext = Depends(get_portfo
 
 
 @router.get("/{ticker}/price-history")
-def stock_price_history(ticker: str, ctx: PortfolioContext = Depends(get_portfolio_context)):
+def stock_price_history(ticker: str, range: str = "6M", ctx: PortfolioContext = Depends(get_portfolio_context)):
     pos = _get_position(ctx, ticker)
-    history = get_price_history(ticker)
+    period, interval = PRICE_HISTORY_RANGES.get(range.upper(), PRICE_HISTORY_RANGES["6M"])
+    history = get_price_history(ticker, period=period, interval=interval)
     if history.empty:
-        return {"dates": [], "close": [], "buys": [], "sells": []}
+        return {"dates": [], "close": [], "buys": [], "sells": [], "intraday": False}
 
     buys = pos.trades[pos.trades["type"].isin(BUY_TYPES)] if not pos.trades.empty else pd.DataFrame()
     sells = pos.trades[pos.trades["type"].isin(SELL_TYPES)].copy() if not pos.trades.empty else pd.DataFrame()
@@ -127,7 +128,9 @@ def stock_price_history(ticker: str, ctx: PortfolioContext = Depends(get_portfol
         sells["price_usd"] = sells["price_usd"].fillna(sells["amount_usd"] / sells["quantity"])
 
     return {
-        "dates": [d.strftime("%Y-%m-%d") for d in history["Date"]],
+        # Full ISO timestamp, not just the date — intraday ranges (1D/5D)
+        # need the time-of-day too; the frontend picks the display format.
+        "dates": [timestamp_to_str(d) for d in history["Date"]],
         "close": [safe_float(v) for v in history["Close"]],
         "buys": [
             {"date": timestamp_to_str(row.date), "price": safe_float(row.price_usd)} for row in buys.itertuples()
@@ -135,6 +138,7 @@ def stock_price_history(ticker: str, ctx: PortfolioContext = Depends(get_portfol
         "sells": [
             {"date": timestamp_to_str(row.date), "price": safe_float(row.price_usd)} for row in sells.itertuples()
         ],
+        "intraday": interval.endswith("m") or interval.endswith("h"),
     }
 
 
