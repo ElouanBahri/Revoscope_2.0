@@ -12,20 +12,25 @@ interface Node {
 }
 
 const GRADIENT_RANGE = 30; // ±30% unrealized maps to the fully-saturated ends
+// A dedicated pale yellow for the diverging midpoint — matching the classic
+// red-yellow-green scale (this is deliberately not one of the app's
+// reserved status/categorical colors: it exists only as this scale's
+// midpoint, the same way a sequential ramp's lightest step is its own
+// thing rather than a reused token).
+const MIDPOINT_YELLOW = "#f5eeb0";
+const GRADIENT_CSS = `linear-gradient(to top, rgb(var(--status-critical)), ${MIDPOINT_YELLOW}, rgb(var(--status-good)))`;
 
-/** Diverging by P&L polarity, using the reserved status colors (gain = good,
- * loss = critical) rather than the generic blue<->red diverging pair — P&L
- * sign is a state signal here, the case the status palette exists for.
- * Blends through a neutral gray at 0%, per the palette's own diverging-scale
- * rule, instead of mixing red directly into green — that direct mix passes
- * through a muddy olive/brown in the middle that's both ugly and low-
- * contrast for the label text sitting on top of it. */
+/** Diverging by P&L polarity: good (green) at the top, critical (red) at
+ * the bottom, blending through a pale yellow at 0% — the classic
+ * red-yellow-green scale. Mixing red directly into green instead (no
+ * middle stop) passes through a muddy olive/brown that's both ugly and
+ * low-contrast for the label text on top of it. */
 function colorForPct(p: number | null): string {
   if (p === null || Number.isNaN(p)) return "rgb(var(--text-muted))";
   const clamped = Math.max(-GRADIENT_RANGE, Math.min(GRADIENT_RANGE, p));
   const t = (Math.abs(clamped) / GRADIENT_RANGE) * 100; // 0 at center, 100 at the extreme
   const pole = clamped >= 0 ? "--status-good" : "--status-critical";
-  return `color-mix(in srgb, rgb(var(--gridline)) ${100 - t}%, rgb(var(${pole})) ${t}%)`;
+  return `color-mix(in srgb, ${MIDPOINT_YELLOW} ${100 - t}%, rgb(var(${pole})) ${t}%)`;
 }
 
 /** "Company Name (TICKER)", truncating the name (never the ticker) to fit
@@ -143,16 +148,18 @@ export function AllocationTreemap({
         </Treemap>
       </ResponsiveContainer>
 
-      <div className="flex w-14 shrink-0 flex-col items-center gap-1 py-1 text-[10px] text-ink-muted">
-        <span>+{GRADIENT_RANGE}%</span>
-        <div
-          className="w-3 flex-1 rounded-full"
-          style={{
-            background: "linear-gradient(to top, rgb(var(--status-critical)), rgb(var(--gridline)), rgb(var(--status-good)))",
-          }}
-        />
-        <span>-{GRADIENT_RANGE}%</span>
-        <span className="mt-1 text-center leading-tight">Unrealized</span>
+      <div className="flex w-16 shrink-0 flex-col items-center gap-1 py-1">
+        <div className="flex flex-1 gap-1.5">
+          <div className="w-3 rounded-full" style={{ background: GRADIENT_CSS }} />
+          <div className="flex flex-col justify-between py-0.5 text-[10px] text-ink-muted">
+            <span>+{GRADIENT_RANGE}%</span>
+            <span>+{GRADIENT_RANGE / 2}%</span>
+            <span>0%</span>
+            <span>-{GRADIENT_RANGE / 2}%</span>
+            <span>-{GRADIENT_RANGE}%</span>
+          </div>
+        </div>
+        <span className="text-[10px] text-ink-muted">Unrealized</span>
       </div>
     </div>
   );
