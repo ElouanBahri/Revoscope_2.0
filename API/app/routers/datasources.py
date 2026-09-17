@@ -3,7 +3,6 @@ equivalent of the old sidebar's file uploader + "Refresh live prices" button.
 """
 from __future__ import annotations
 
-import yfinance as yf
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from ..datasources.base import DataSourceError
@@ -54,17 +53,3 @@ def refresh_caches():
     ]:
         fn.clear()
     return {"ok": True}
-
-
-@router.get("/debug/yf-info/{ticker}")
-def debug_yf_info(ticker: str):
-    """Temporary diagnostic: bypasses get_ticker_info's caching and
-    exception-swallowing to surface the raw error from yfinance's `.info`
-    lookup directly in the response, so it's checkable with curl instead of
-    needing the Render dashboard's log viewer. Remove once sector/company
-    name fetching is confirmed working again."""
-    try:
-        info = yf.Ticker(prices.to_yahoo_symbol(ticker)).info
-        return {"ok": True, "keys": sorted(info.keys()), "sector": info.get("sector"), "shortName": info.get("shortName")}
-    except Exception as exc:
-        return {"ok": False, "error_type": type(exc).__name__, "error": str(exc)}
