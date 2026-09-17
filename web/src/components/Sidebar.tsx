@@ -45,12 +45,8 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-ink-primary/10 bg-surface px-4 py-5">
-      <div className="mb-6 flex items-center gap-2 px-1">
-        <img src="/favicon.svg" alt="" className="h-7 w-7" />
-        <div>
-          <div className="text-base font-semibold leading-tight text-ink-primary">revoscope</div>
-          <div className="text-[11px] leading-tight text-ink-muted">2.0</div>
-        </div>
+      <div className="mb-6 flex items-center justify-center rounded-card bg-white px-3 py-3">
+        <img src="/logo-512.png" alt="revoscope — global data. smarter decisions." className="w-full max-w-[9rem]" />
       </div>
 
       <nav className="flex flex-col gap-0.5">
