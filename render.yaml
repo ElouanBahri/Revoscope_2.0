@@ -11,3 +11,11 @@ services:
         value: '["https://revoscope.elouanbahri.com"]'
       - key: BINANCE_TESTNET
         value: "true"
+      # Render defaults to the latest Python (3.14 as of writing), but
+      # numpy==2.2.1/pandas==2.2.3 in requirements.txt predate 3.14 and have
+      # no official wheels for it — pip silently installs an ABI-mismatched
+      # wheel anyway, which segfaults (exit 139) the instant real numeric
+      # code runs (a CSV parse, a correlation matrix, ...). Pin to a Python
+      # version these pinned package versions actually ship wheels for.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
