@@ -26,6 +26,11 @@ function colorForPct(p: number | null): string {
 function CustomCell(props: any) {
   const { x, y, width, height, name, ticker, unrealizedPct } = props;
   if (width < 2 || height < 2) return null;
+  // Recharts' Treemap calls this content renderer for internal layout
+  // nodes too (e.g. the implicit root), not just our actual data leaves —
+  // those carry none of our custom fields, so name/ticker can be undefined
+  // here even though every real leaf always has them.
+  if (!name || !ticker) return null;
   const showLabel = width > 55 && height > 32;
   return (
     <g>
@@ -56,6 +61,7 @@ function CustomCell(props: any) {
 function ChartTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const d: Node = payload[0].payload;
+  if (!d?.name || !d?.ticker) return null;
   return (
     <div className="rounded-lg border border-ink-primary/10 bg-surface px-3 py-2 text-xs shadow-lg">
       <div className="font-semibold text-ink-primary">
