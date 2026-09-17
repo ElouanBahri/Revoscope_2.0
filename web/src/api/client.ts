@@ -1,4 +1,8 @@
-const BASE = "/api";
+// In dev, Vite proxies "/api" to the local backend (see vite.config.ts). In
+// production there's no dev-server proxy, so a deployed frontend needs the
+// real backend URL — set VITE_API_BASE_URL at build time (e.g. in Vercel's
+// project settings) to something like "https://revoscope-api.onrender.com".
+const BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 class ApiError extends Error {}
 

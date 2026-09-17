@@ -80,15 +80,41 @@ steps for each.
   Restarting the API loses an uploaded CSV; Binance/IBKR data is re-fetched
   live each time, so nothing is lost there.
 
-## Deploying under your own subdomain
+## Deploying to chronostrike.elouanbahri.com
 
-The frontend (`web/`) builds to static files (`npm run build`) deployable
-anywhere (Vercel, Netlify, a static host). The backend needs a real host
-(Render, Fly.io, a VPS) since it makes outbound calls to Yahoo Finance,
-Frankfurter, the Treasury, FRED, and optionally Binance/IBKR — set
-`CORS_ORIGINS` in `API/.env` to your deployed frontend's origin.
+Frontend on **Vercel**, backend on **Render** — both free-tier, both deploy
+straight from the `ElouanBahri/Revoscope_2.0` GitHub repo.
 
-Interactive Brokers is the one piece that's inherently local-first: its
-Client Portal Gateway is a process you run and log into by hand, so a fully
-hosted 24/7 IBKR connection needs a VPS running the gateway continuously,
-not just the API. Binance and Revolut have no such constraint.
+**Backend (Render):**
+1. In Render: New → Blueprint → point it at this repo. It picks up
+   `render.yaml` at the repo root (root dir `API/`, installs
+   `requirements.txt`, runs `uvicorn app.main:app --host 0.0.0.0 --port $PORT`).
+2. `render.yaml` already sets `CORS_ORIGINS` to
+   `["https://chronostrike.elouanbahri.com"]`. Add `BINANCE_API_KEY` /
+   `BINANCE_API_SECRET` there too if you want Binance live on the deployed
+   site (Testnet is on by default).
+3. Note the service's `*.onrender.com` URL once deployed — that's the
+   backend URL the frontend needs (next step).
+
+**Frontend (Vercel):**
+1. In Vercel: New Project → import `ElouanBahri/Revoscope_2.0` → set **Root
+   Directory** to `web`. It auto-detects Vite (`npm run build`, output
+   `dist`); `web/vercel.json` adds the SPA rewrite so client-side routes
+   (`/stocks/AAPL`, etc.) don't 404 on a hard refresh.
+2. Add an environment variable `VITE_API_BASE_URL` = your Render backend URL
+   from above (e.g. `https://revoscope-api.onrender.com`) — the frontend
+   reads this at build time (`web/src/api/client.ts`) instead of the dev-only
+   `/api` proxy.
+3. In the Vercel project's Domains settings, add `chronostrike.elouanbahri.com`.
+   Vercel gives you a CNAME target (typically `cname.vercel-dns.com`).
+4. At whatever DNS provider hosts `elouanbahri.com`, add:
+   `CNAME  chronostrike  →  cname.vercel-dns.com` (exact target as shown in
+   Vercel's dashboard — it can differ). DNS propagation is usually minutes,
+   sometimes longer.
+
+**Interactive Brokers stays local-only** in this setup: its Client Portal
+Gateway is a process you run and log into by hand, so the *hosted* site's
+Data Sources page will correctly show IBKR as unreachable — that's expected,
+not a bug. Run the API locally (`uvicorn app.main:app`) with the gateway
+running alongside it whenever you want IBKR data; Binance and Revolut CSV
+work the same locally or hosted.
