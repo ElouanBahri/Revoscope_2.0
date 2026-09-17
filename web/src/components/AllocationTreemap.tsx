@@ -11,17 +11,18 @@ interface Node {
   isBond: boolean;
 }
 
+const GRADIENT_RANGE = 30; // ±30% unrealized maps to the fully-saturated ends
+
+/** Diverging by P&L polarity, using the reserved status colors (gain = good,
+ * loss = critical) rather than the generic blue<->red diverging pair — P&L
+ * sign is a state signal here, the case the status palette exists for.
+ * A real color-mix blend (full saturation throughout) rather than varying
+ * opacity over the dark card background, which read as washed-out/muted. */
 function colorForPct(p: number | null): string {
   if (p === null || Number.isNaN(p)) return "rgb(var(--text-muted))";
-  // Diverging by P&L polarity, using the reserved status colors (gain =
-  // good, loss = critical) rather than the generic blue<->red diverging
-  // pair — P&L sign is a state signal here, the case the status palette
-  // exists for. Magnitude within each side maps to opacity, not hue.
-  const clamped = Math.max(-30, Math.min(30, p));
-  const t = Math.abs(clamped) / 30;
-  const variable = clamped >= 0 ? "--status-good" : "--status-critical";
-  const opacity = 0.25 + t * 0.6;
-  return `rgb(var(${variable}) / ${opacity})`;
+  const clamped = Math.max(-GRADIENT_RANGE, Math.min(GRADIENT_RANGE, p));
+  const goodShare = ((clamped + GRADIENT_RANGE) / (2 * GRADIENT_RANGE)) * 100;
+  return `color-mix(in srgb, rgb(var(--status-critical)) ${100 - goodShare}%, rgb(var(--status-good)) ${goodShare}%)`;
 }
 
 /** "Company Name (TICKER)", truncating the name (never the ticker) to fit
@@ -108,16 +109,30 @@ export function AllocationTreemap({
   }
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <Treemap
-        data={data}
-        dataKey="size"
-        stroke={surface}
-        content={<CustomCell onSelect={onSelect} />}
-        isAnimationActive={false}
-      >
-        <Tooltip content={<ChartTooltip />} />
-      </Treemap>
-    </ResponsiveContainer>
+    <div className="flex gap-4">
+      <ResponsiveContainer width="100%" height={320} className="flex-1">
+        <Treemap
+          data={data}
+          dataKey="size"
+          stroke={surface}
+          content={<CustomCell onSelect={onSelect} />}
+          isAnimationActive={false}
+        >
+          <Tooltip content={<ChartTooltip />} />
+        </Treemap>
+      </ResponsiveContainer>
+
+      <div className="flex w-14 shrink-0 flex-col items-center gap-1 py-1 text-[10px] text-ink-muted">
+        <span>+{GRADIENT_RANGE}%</span>
+        <div
+          className="w-3 flex-1 rounded-full"
+          style={{
+            background: "linear-gradient(to top, rgb(var(--status-critical)), rgb(var(--gridline)), rgb(var(--status-good)))",
+          }}
+        />
+        <span>-{GRADIENT_RANGE}%</span>
+        <span className="mt-1 text-center leading-tight">Unrealized</span>
+      </div>
+    </div>
   );
 }

@@ -103,7 +103,7 @@ def get_live_prices(tickers: tuple[str, ...]) -> dict[str, float]:
 
 _info_fetch_lock = threading.Lock()
 _last_info_fetch = 0.0
-_MIN_INFO_FETCH_INTERVAL = 0.3  # seconds between actual (uncached) .info calls
+_MIN_INFO_FETCH_INTERVAL = 2.0  # seconds between actual (uncached) .info calls
 
 
 def _throttle_info_fetch() -> None:
