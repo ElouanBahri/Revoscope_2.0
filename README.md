@@ -80,7 +80,7 @@ steps for each.
   Restarting the API loses an uploaded CSV; Binance/IBKR data is re-fetched
   live each time, so nothing is lost there.
 
-## Deploying to chronostrike.elouanbahri.com
+## Deploying to revoscope.elouanbahri.com
 
 Frontend on **Vercel**, backend on **Render** — both free-tier, both deploy
 straight from the `ElouanBahri/Revoscope_2.0` GitHub repo.
@@ -90,7 +90,7 @@ straight from the `ElouanBahri/Revoscope_2.0` GitHub repo.
    `render.yaml` at the repo root (root dir `API/`, installs
    `requirements.txt`, runs `uvicorn app.main:app --host 0.0.0.0 --port $PORT`).
 2. `render.yaml` already sets `CORS_ORIGINS` to
-   `["https://chronostrike.elouanbahri.com"]`. Add `BINANCE_API_KEY` /
+   `["https://revoscope.elouanbahri.com"]`. Add `BINANCE_API_KEY` /
    `BINANCE_API_SECRET` there too if you want Binance live on the deployed
    site (Testnet is on by default).
 3. Note the service's `*.onrender.com` URL once deployed — that's the
@@ -105,10 +105,10 @@ straight from the `ElouanBahri/Revoscope_2.0` GitHub repo.
    from above (e.g. `https://revoscope-api.onrender.com`) — the frontend
    reads this at build time (`web/src/api/client.ts`) instead of the dev-only
    `/api` proxy.
-3. In the Vercel project's Domains settings, add `chronostrike.elouanbahri.com`.
+3. In the Vercel project's Domains settings, add `revoscope.elouanbahri.com`.
    Vercel gives you a CNAME target (typically `cname.vercel-dns.com`).
 4. At whatever DNS provider hosts `elouanbahri.com`, add:
-   `CNAME  chronostrike  →  cname.vercel-dns.com` (exact target as shown in
+   `CNAME  revoscope  →  cname.vercel-dns.com` (exact target as shown in
    Vercel's dashboard — it can differ). DNS propagation is usually minutes,
    sometimes longer.
 
