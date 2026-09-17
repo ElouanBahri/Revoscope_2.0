@@ -17,7 +17,7 @@ def get_status():
     transactions, warnings = app_state.get_transactions()
     statuses = [s.status() for s in app_state.sources()]
     return {
-        "sources": [{"name": s.name, "state": s.state, "detail": s.detail} for s in statuses],
+        "sources": [{"name": s.name, "state": s.state, "detail": s.detail, "is_example": s.is_example} for s in statuses],
         "warnings": [{"source": w.source, "message": w.message} for w in warnings],
         "transaction_count": int(len(transactions)),
     }

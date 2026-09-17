@@ -9,13 +9,16 @@ data doesn't need to persist since it's re-fetched live each time.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 
 from .config import settings
 from .datasources import BinanceSource, DataSourceError, IBKRSource, RevolutCsvSource
 from .datasources.base import ConnectionState, TRANSACTION_COLUMNS
+
+EXAMPLE_CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "example-portfolio.csv"
 
 
 @dataclass
@@ -29,6 +32,8 @@ class AppState:
         self.revolut = RevolutCsvSource()
         self.binance = BinanceSource(settings)
         self.ibkr = IBKRSource(settings)
+        if EXAMPLE_CSV_PATH.exists():
+            self.revolut.load_example_if_empty(str(EXAMPLE_CSV_PATH))
 
     def sources(self):
         return [self.revolut, self.binance, self.ibkr]

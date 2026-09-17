@@ -12,6 +12,12 @@ class Settings(BaseSettings):
 
     # --- General -----------------------------------------------------
     cors_origins: list[str] = ["http://localhost:5173"]
+    # Vercel gives every deploy (production, and every preview build) its
+    # own *.vercel.app URL, which changes across deploys — matching those by
+    # exact string in cors_origins would break on every new preview. This
+    # regex covers any of your account's Vercel URLs in addition to the
+    # exact origins above (the real custom domain, once DNS is live).
+    cors_origin_regex: str | None = r"https://.*\.vercel\.app"
 
     # --- Binance -------------------------------------------------------
     binance_api_key: str | None = None

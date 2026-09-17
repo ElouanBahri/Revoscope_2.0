@@ -18,15 +18,26 @@ export function Overview() {
   const sectors = useAsync(() => api.sectors(), []);
   const benchmark = useAsync(() => api.benchmark(), []);
   const correlation = useAsync(() => api.correlation(), []);
+  const status = useAsync(() => api.status(), []);
 
   if (overview.loading) return <p className="text-sm text-ink-secondary">Loading…</p>;
   if (overview.error) return <p className="text-sm text-status-critical">{overview.error}</p>;
   const o = overview.data;
   if (!o) return null;
 
+  const usingExample = status.data?.sources.some((s) => s.name === "revolut_csv" && s.is_example) ?? false;
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-ink-primary">Overview</h1>
+
+      {usingExample && (
+        <div className="rounded-card border border-series-1/30 bg-series-1/10 p-3 text-xs text-ink-secondary">
+          👀 You're viewing an <span className="font-medium text-ink-primary">example portfolio</span> — real trades,
+          in companies picked for demo purposes, so you can see how revoscope works. Upload your own Revolut CSV in
+          the sidebar to see your own data instead.
+        </div>
+      )}
 
       {o.failed_price_tickers.length > 0 && (
         <div className="rounded-card border border-status-warning/30 bg-status-warning/10 p-3 text-xs text-ink-secondary">

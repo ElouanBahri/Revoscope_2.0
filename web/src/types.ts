@@ -178,6 +178,7 @@ export interface DataSourceStatus {
   name: string;
   state: ConnectionState;
   detail: string;
+  is_example: boolean;
 }
 
 export interface DataSourcesStatus {

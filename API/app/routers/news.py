@@ -1,6 +1,8 @@
 """News tab: macro/economy overview plus per-holding portfolio news."""
 from __future__ import annotations
 
+import gc
+
 import pandas as pd
 from fastapi import APIRouter, Depends, Query
 
@@ -12,9 +14,15 @@ from ..utils import timestamp_to_str
 router = APIRouter(prefix="/news", tags=["news"])
 
 _REGION_QUERIES = {
-    "us": ("United States / Fed", ["Federal Reserve", "Fed interest rate"]),
-    "europe": ("Europe", ["European Central Bank", "Eurozone economy"]),
-    "asia": ("Asia", ["China economy", "Bank of Japan"]),
+    # One query per region, not two — each yf.Search() call spins up its own
+    # curl_cffi HTTP session, and this endpoint already makes several other
+    # external calls (FRED, CME futures, Polymarket, Kalshi) in the same
+    # request; on a memory-constrained host (e.g. Render's free 512MB tier)
+    # stacking too many of these in one request risks the process getting
+    # OOM-killed. Trading a little headline recall for reliability here.
+    "us": ("United States / Fed", ["Federal Reserve"]),
+    "europe": ("Europe", ["European Central Bank"]),
+    "asia": ("Asia", ["China economy"]),
 }
 
 
@@ -38,6 +46,12 @@ def economy_overview():
     next_fomc = news_service.next_meeting(news_service.FOMC_MEETINGS, today)
     next_ecb = news_service.next_meeting(news_service.ECB_MEETINGS, today)
     fed_odds = news_service.get_fed_meeting_probabilities(next_fomc, fed_rate)
+    # These calls above each spin up their own yfinance/requests session
+    # (CME futures, Polymarket, Kalshi); collecting here before the region
+    # searches below start a fresh batch keeps peak memory lower on a
+    # constrained host instead of letting every session's garbage pile up
+    # for the rest of this already-heavy request.
+    gc.collect()
 
     def _meeting(meeting):
         if meeting is None:
@@ -49,6 +63,7 @@ def economy_overview():
         key: {"label": label, "headlines": [_headline(h, now_utc) for h in news_service.search_news_topics(queries, count_per_query=5, limit=5)]}
         for key, (label, queries) in _REGION_QUERIES.items()
     }
+    gc.collect()
 
     return {
         "fed_rate": {**fed_rate, "as_of": timestamp_to_str(fed_rate["as_of"])} if fed_rate else None,

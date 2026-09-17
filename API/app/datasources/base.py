@@ -55,6 +55,7 @@ class DataSourceStatus:
     name: str
     state: ConnectionState
     detail: str = ""
+    is_example: bool = False  # revolut_csv only: showing the bundled demo portfolio, not a real upload
 
 
 def empty_transactions() -> pd.DataFrame:

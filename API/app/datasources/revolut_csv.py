@@ -18,8 +18,9 @@ class RevolutCsvSource:
     def __init__(self) -> None:
         self._transactions: pd.DataFrame | None = None
         self._error: str | None = None
+        self.is_example = False
 
-    def load(self, csv_source: str | IO[bytes]) -> None:
+    def load(self, csv_source: str | IO[bytes], *, is_example: bool = False) -> None:
         """Parse and hold an uploaded CSV in memory for this process's
         lifetime — same single-user, no-database model as the original
         Streamlit app, just moved behind an explicit upload endpoint instead
@@ -27,16 +28,39 @@ class RevolutCsvSource:
         try:
             self._transactions = load_transactions(csv_source)
             self._error = None
+            self.is_example = is_example
         except Exception as exc:
             self._transactions = None
             self._error = str(exc)
             raise
+
+    def load_example_if_empty(self, example_csv_path: str) -> None:
+        """Best-effort: pre-load the bundled example portfolio at startup, so
+        the app has something to show before any real CSV is uploaded —
+        matching the original Streamlit app's fallback to
+        data/raw/example-portfolio.csv. Silently does nothing if the file is
+        missing or fails to parse; a real upload always overrides it
+        (see `load`, which resets `is_example` back to False)."""
+        if self._transactions is not None:
+            return
+        try:
+            self.load(example_csv_path, is_example=True)
+        except Exception:
+            self._transactions = None
+            self._error = None
 
     def status(self) -> DataSourceStatus:
         if self._error:
             return DataSourceStatus(self.name, ConnectionState.ERROR, self._error)
         if self._transactions is None:
             return DataSourceStatus(self.name, ConnectionState.NOT_CONFIGURED, "No CSV uploaded yet.")
+        if self.is_example:
+            return DataSourceStatus(
+                self.name,
+                ConnectionState.CONNECTED,
+                f"Showing the example portfolio ({len(self._transactions)} transactions) — upload your own CSV to replace it.",
+                is_example=True,
+            )
         return DataSourceStatus(self.name, ConnectionState.CONNECTED, f"{len(self._transactions)} transactions loaded.")
 
     def fetch_transactions(self) -> pd.DataFrame:
