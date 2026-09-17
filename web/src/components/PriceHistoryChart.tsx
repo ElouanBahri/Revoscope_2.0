@@ -50,7 +50,13 @@ export function PriceHistoryChart({ history, chartKey }: { history: PriceHistory
           dataKey="ts"
           type="number"
           scale="time"
-          domain={["dataMin", "dataMax"]}
+          // Explicit computed numbers, not the "dataMin"/"dataMax" string
+          // keywords — those turned out to resolve unreliably here across
+          // range changes (every point would end up collapsed onto a
+          // single x position, as if Recharts were reusing a stale
+          // domain calculation from a previous dataset instead of
+          // recomputing it for the new one).
+          domain={[minTs, maxTs]}
           tickFormatter={formatTs}
           tick={{ fontSize: 11, fill: textMuted }}
           tickLine={false}
