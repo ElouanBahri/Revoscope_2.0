@@ -149,13 +149,7 @@ export function StockDetail() {
         }
       >
         {priceHistory.data ? (
-          // key={range} forces a clean remount on range change — Recharts
-          // doesn't reliably recompute its internal axis/tick state from a
-          // changed `data` prop alone (a known gotcha with a numeric
-          // domain=["dataMin","dataMax"] axis), so without this the chart
-          // can keep showing the previous range's shape and tick labels
-          // even though the correct new data already arrived.
-          <PriceHistoryChart key={range} history={priceHistory.data} />
+          <PriceHistoryChart chartKey={range} history={priceHistory.data} />
         ) : (
           <p className="text-sm text-ink-secondary">Loading…</p>
         )}

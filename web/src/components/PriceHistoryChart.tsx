@@ -9,7 +9,7 @@ function toTs(date: string | null | undefined): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
-export function PriceHistoryChart({ history }: { history: PriceHistory }) {
+export function PriceHistoryChart({ history, chartKey }: { history: PriceHistory; chartKey?: string }) {
   // A category x-axis (Recharts' default for a string dataKey) shared
   // between a Line and Scatter series that each carry their own `data`
   // (the close-price line vs. the buy/sell markers) only picks up
@@ -39,7 +39,12 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
 
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <ComposedChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+      {/* Keying the inner chart (not ResponsiveContainer itself) forces
+          Recharts to recompute its axis/tick state on range change without
+          also remounting ResponsiveContainer's ResizeObserver — remounting
+          that too made it briefly see a 0-width container and never
+          recover, collapsing every point onto a single x position. */}
+      <ComposedChart key={chartKey} data={data} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
         <CartesianGrid stroke={gridline} vertical={false} />
         <XAxis
           dataKey="ts"
