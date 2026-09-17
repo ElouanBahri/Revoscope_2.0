@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { api } from "../api/client";
 import { useAsync } from "../hooks";
 import { Card } from "../components/Card";
@@ -14,16 +13,14 @@ function meetingDelta(meeting: EconomyOverview["next_fomc"]): string | undefined
 
 export function News() {
   const economy = useAsync(() => api.economyNews(), []);
-  const [selectedTicker, setSelectedTicker] = useState<string>("__all__");
-  const news = useAsync(() => api.portfolioNews(selectedTicker === "__all__" ? undefined : selectedTicker), [selectedTicker]);
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-ink-primary">News</h1>
 
       <Card
-        title="🌍 Economy Overview"
-        caption="Current policy rates and each central bank's next scheduled meeting, plus recent macro headlines. Rates refresh hourly; headlines every 15 minutes."
+        title="🏛️ Economic & Politics News"
+        caption="Current policy rates and each central bank's next scheduled meeting, plus recent macro and political headlines. Rates refresh hourly; headlines every 15 minutes. Per-holding news now lives on each stock's own Stock Detail page."
       >
         {economy.loading && <p className="text-sm text-ink-secondary">Loading…</p>}
         {economy.data && (
@@ -58,7 +55,7 @@ export function News() {
               <p className="mt-4 text-xs text-ink-muted">Fed rate-move odds unavailable right now.</p>
             )}
 
-            <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {Object.entries(economy.data.regions).map(([key, region]) => (
                 <div key={key}>
                   <div className="mb-2 text-xs font-semibold text-ink-primary">{region.label}</div>
@@ -68,46 +65,6 @@ export function News() {
             </div>
           </>
         )}
-      </Card>
-
-      <Card
-        title="📁 Your Portfolio News"
-        caption="Recent headlines for each open position, pulled from Yahoo Finance's per-security news feed."
-        action={
-          <select
-            value={selectedTicker}
-            onChange={(e) => setSelectedTicker(e.target.value)}
-            className="rounded-lg border border-ink-primary/10 bg-surface px-2 py-1 text-xs text-ink-primary"
-          >
-            <option value="__all__">All holdings</option>
-            {news.data?.map((n) => (
-              <option key={n.ticker} value={n.ticker}>
-                {n.ticker}
-              </option>
-            ))}
-          </select>
-        }
-      >
-        {news.loading && <p className="text-sm text-ink-secondary">Loading…</p>}
-        {news.data?.length === 0 && <p className="text-xs text-ink-muted">No open positions to show news for.</p>}
-        <div className="flex flex-col gap-5">
-          {news.data
-            ?.filter((n) => n.headlines.length > 0 || n.is_bond)
-            .map((n) => (
-              <div key={n.ticker}>
-                <div className="mb-1 text-xs font-semibold text-ink-primary">
-                  {n.ticker} — {n.name}
-                </div>
-                {n.is_bond ? (
-                  <p className="text-xs text-ink-muted">
-                    No news feed available for bonds — Yahoo Finance doesn't index bond CUSIPs/ISINs.
-                  </p>
-                ) : (
-                  <HeadlineList headlines={n.headlines} />
-                )}
-              </div>
-            ))}
-        </div>
       </Card>
     </div>
   );

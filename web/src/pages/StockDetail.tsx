@@ -7,6 +7,7 @@ import { StatTile, toneFromSign } from "../components/StatTile";
 import { PriceHistoryChart } from "../components/PriceHistoryChart";
 import { BetaScatterChart } from "../components/BetaScatterChart";
 import { ComparisonLineChart } from "../components/ComparisonLineChart";
+import { HeadlineList } from "../components/HeadlineList";
 import { Table } from "../components/Table";
 import { money, pct, qty, shortDate } from "../format";
 import { PRICE_HISTORY_RANGES, type PriceHistoryRange, type Trade } from "../types";
@@ -28,6 +29,8 @@ export function StockDetail() {
   const sinceInvested = useAsync(() => (ticker ? api.stockSinceInvested(ticker) : Promise.resolve(null)), [ticker]);
   const priceHistory = useAsync(() => (ticker ? api.stockPriceHistory(ticker, range) : Promise.resolve(null)), [ticker, range]);
   const trades = useAsync(() => (ticker ? api.stockTrades(ticker) : Promise.resolve(null)), [ticker]);
+  const news = useAsync(() => (ticker ? api.portfolioNews(ticker) : Promise.resolve(null)), [ticker]);
+  const newsHeadlines = news.data?.[0]?.headlines ?? [];
 
   if (list.data && list.data.length === 0) {
     return <p className="text-sm text-ink-secondary">No stock/ETF positions yet — upload a CSV or connect a data source.</p>;
@@ -91,6 +94,20 @@ export function StockDetail() {
           </Card>
         </>
       )}
+
+      <Card title={`📰 ${ticker} News`} caption="Recent headlines for this holding, pulled from Yahoo Finance's per-security news feed.">
+        {news.loading && <p className="text-sm text-ink-secondary">Loading…</p>}
+        {news.data && (
+          <HeadlineList
+            headlines={newsHeadlines}
+            emptyText={
+              news.data[0]?.is_bond
+                ? "No news feed available for bonds — Yahoo Finance doesn't index bond CUSIPs/ISINs."
+                : "No recent headlines found for this holding."
+            }
+          />
+        )}
+      </Card>
 
       {beta.data && (
         <Card

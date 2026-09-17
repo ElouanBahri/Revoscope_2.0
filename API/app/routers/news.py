@@ -1,4 +1,6 @@
-"""News tab: macro/economy overview plus per-holding portfolio news."""
+"""News tab: macro economic & politics overview. Also serves per-ticker
+headlines (GET /portfolio?ticker=X), used by Stock Detail rather than a
+dedicated portfolio-news section on this tab."""
 from __future__ import annotations
 
 import gc
@@ -23,6 +25,7 @@ _REGION_QUERIES = {
     "us": ("United States / Fed", ["Federal Reserve"]),
     "europe": ("Europe", ["European Central Bank"]),
     "asia": ("Asia", ["China economy"]),
+    "politics": ("Politics", ["US politics"]),
 }
 
 
