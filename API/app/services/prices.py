@@ -6,6 +6,9 @@ st.cache_data swapped for the plain TTL cache in app.cache.
 """
 from __future__ import annotations
 
+import threading
+import time
+
 import pandas as pd
 import yfinance as yf
 
@@ -98,6 +101,26 @@ def get_live_prices(tickers: tuple[str, ...]) -> dict[str, float]:
     return prices
 
 
+_info_fetch_lock = threading.Lock()
+_last_info_fetch = 0.0
+_MIN_INFO_FETCH_INTERVAL = 0.3  # seconds between actual (uncached) .info calls
+
+
+def _throttle_info_fetch() -> None:
+    """Yahoo's `.info` endpoint (unlike the plain price-history one) rate-
+    limits on request bursts specifically — a cold cache means every ticker
+    in a portfolio gets fetched back-to-back in one loop, which is exactly
+    the burst pattern that trips it. This only ever delays actual network
+    fetches (cache hits return before calling this), so a warm cache stays
+    instant."""
+    global _last_info_fetch
+    with _info_fetch_lock:
+        wait = _MIN_INFO_FETCH_INTERVAL - (time.monotonic() - _last_info_fetch)
+        if wait > 0:
+            time.sleep(wait)
+        _last_info_fetch = time.monotonic()
+
+
 @cache_data(ttl=3600)
 def get_ticker_info(ticker: str) -> dict:
     """Cached raw Yahoo Finance `.info` for one ticker. Sector and company
@@ -105,6 +128,7 @@ def get_ticker_info(ticker: str) -> dict:
     calling yfinance separately) halves the Yahoo requests per ticker —
     which also means less exposure to Yahoo's rate-limiting.
     """
+    _throttle_info_fetch()
     try:
         return yf.Ticker(to_yahoo_symbol(ticker)).info
     except Exception as exc:
