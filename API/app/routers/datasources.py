@@ -46,6 +46,8 @@ def refresh_caches():
         prices.get_sectors,
         prices.get_company_names,
         prices.get_ticker_info,
+        prices.get_ticker_meta,
+        prices._recent_quote,
         news.search_news,
         news.get_ticker_news,
         bonds.get_treasury_security,

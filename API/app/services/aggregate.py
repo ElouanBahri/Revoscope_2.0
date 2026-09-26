@@ -27,7 +27,14 @@ from .performance import (
     build_portfolio_series,
 )
 from .portfolio import Position, build_positions, cash_balance
-from .prices import ALL_SECTORS, get_company_names, get_live_prices, get_price_history, get_sectors
+from .prices import (
+    ALL_SECTORS,
+    get_company_names,
+    get_live_prices,
+    get_price_history,
+    get_sectors,
+    parallel_map,
+)
 
 
 
@@ -166,9 +173,8 @@ class PortfolioContext:
             return None
 
         date_index = pd.DatetimeIndex(sorted(benchmark_hist["Date"].dt.normalize().unique()))
-        price_histories = {
-            ticker: get_price_history(ticker, start=perf_start.strftime("%Y-%m-%d")) for ticker in self.positions
-        }
+        start = perf_start.strftime("%Y-%m-%d")
+        price_histories = parallel_map(lambda ticker: get_price_history(ticker, start=start), self.positions)
         portfolio_value, cash_flows = build_portfolio_series(self.positions, price_histories, date_index)
         benchmark_price_series = benchmark_hist.set_index(benchmark_hist["Date"].dt.normalize())["Close"]
         shadow_value = build_benchmark_shadow_series(cash_flows, benchmark_price_series)
@@ -189,9 +195,9 @@ class PortfolioContext:
     def correlation(self) -> dict | None:
         if len(self.stock_tickers) < 2:
             return None
+        histories = parallel_map(lambda ticker: get_price_history(ticker, period="1y"), self.stock_tickers)
         stock_returns = {}
-        for ticker in self.stock_tickers:
-            hist = get_price_history(ticker, period="1y")
+        for ticker, hist in histories.items():
             if not hist.empty:
                 daily_returns = hist.set_index("Date")["Close"].pct_change().dropna()
                 if not daily_returns.empty:

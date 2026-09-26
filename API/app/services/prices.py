@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, Iterable, TypeVar
 
 import pandas as pd
 import yfinance as yf
@@ -30,6 +32,8 @@ PRICE_HISTORY_RANGES: dict[str, tuple[str, str]] = {
 
 from ..cache import cache_data
 from .fx import get_latest_usd_rate, get_usd_rate_series
+
+T = TypeVar("T")
 
 # Revolut exports the bare ticker with no exchange suffix, but Yahoo Finance
 # requires one for anything not listed on a US exchange (US stocks like AAPL
@@ -88,6 +92,68 @@ def _strip_tz(dates: pd.Series) -> pd.Series:
     return dates.dt.tz_localize(None) if dates.dt.tz is not None else dates
 
 
+# Yahoo's chart/history endpoint isn't rate-limited the way `.info` is, so
+# per-ticker fetches against it can run concurrently — a cold cache for a
+# ~20-ticker portfolio otherwise costs ~20 back-to-back round trips.
+_FETCH_WORKERS = 8
+
+
+def parallel_map(fn: Callable[[str], T], tickers: Iterable[str]) -> dict[str, T]:
+    """{ticker: fn(ticker)} with the calls run concurrently."""
+    tickers = list(dict.fromkeys(tickers))
+    if not tickers:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(_FETCH_WORKERS, len(tickers))) as pool:
+        return dict(zip(tickers, pool.map(fn, tickers)))
+
+
+@cache_data(ttl=300)
+def _recent_quote(ticker: str) -> tuple[float, dict]:
+    """Latest native-currency close plus Yahoo's chart metadata (currency,
+    instrumentType, shortName/longName) from one cheap history request.
+
+    A few days, not one: some exchanges report today's close with a lag, and
+    a bare period="1d" fetch can land on that one row while it's still NaN,
+    showing "no price" for an otherwise perfectly resolvable ticker until the
+    feed catches up.
+    """
+    yf_ticker = yf.Ticker(to_yahoo_symbol(ticker))
+    closes = yf_ticker.history(period="5d")["Close"].dropna()
+    price = float(closes.iloc[-1]) if not closes.empty else float("nan")
+    return price, dict(yf_ticker.history_metadata or {})
+
+
+@cache_data(ttl=86400)
+def get_ticker_meta(ticker: str) -> dict:
+    """Chart metadata for one ticker, cached for a day — listing currency,
+    instrument type and name essentially never change. Raises (so nothing is
+    cached) if Yahoo returned no metadata, letting the next call retry."""
+    meta = _recent_quote(ticker)[1]
+    if not meta:
+        raise LookupError(f"no chart metadata for {ticker!r}")
+    return meta
+
+
+def _meta_or_empty(ticker: str) -> dict:
+    try:
+        return get_ticker_meta(ticker)
+    except Exception:
+        return {}
+
+
+def _currency(ticker: str) -> str:
+    return (_meta_or_empty(ticker).get("currency") or "USD").upper()
+
+
+def _live_price_usd(ticker: str) -> float:
+    try:
+        native_price = _recent_quote(ticker)[0]
+        rate = get_latest_usd_rate(_currency(ticker))
+        return native_price * rate if rate is not None else native_price
+    except Exception:
+        return float("nan")
+
+
 @cache_data(ttl=300)
 def get_live_prices(tickers: tuple[str, ...]) -> dict[str, float]:
     """Latest close price per ticker, converted to USD. Missing/unresolvable
@@ -99,22 +165,7 @@ def get_live_prices(tickers: tuple[str, ...]) -> dict[str, float]:
     non-USD quote is converted at today's rate before being reported,
     keeping every position comparable in the same currency.
     """
-    prices: dict[str, float] = {}
-    for ticker in tickers:
-        try:
-            # A few days, not one: some exchanges report today's close with
-            # a lag, and a bare period="1d" fetch can land on that one row
-            # while it's still NaN, showing "no price" for an otherwise
-            # perfectly resolvable ticker until the feed catches up.
-            history = yf.Ticker(to_yahoo_symbol(ticker)).history(period="5d")
-            closes = history["Close"].dropna()
-            native_price = float(closes.iloc[-1]) if not closes.empty else float("nan")
-            currency = (get_ticker_info(ticker).get("currency") or "USD").upper()
-            rate = get_latest_usd_rate(currency)
-            prices[ticker] = native_price * rate if rate is not None else native_price
-        except Exception:
-            prices[ticker] = float("nan")
-    return prices
+    return parallel_map(_live_price_usd, tickers)
 
 
 _info_fetch_lock = threading.Lock()
@@ -174,8 +225,15 @@ def get_sectors(tickers: tuple[str, ...]) -> dict[str, str]:
     that failure for 24h would leave it looking broken for a full day with
     no way to retry sooner than that.
     """
+    # The (unthrottled) chart metadata already says whether each ticker is a
+    # fund, so ETFs skip the slow, rate-limited `.info` call entirely.
+    metas = parallel_map(_meta_or_empty, tickers)
     sectors: dict[str, str] = {}
     for ticker in tickers:
+        instrument_type = (metas[ticker].get("instrumentType") or "").upper()
+        if instrument_type in _FUND_QUOTE_TYPES:
+            sectors[ticker] = ETF_SECTOR
+            continue
         info = get_ticker_info(ticker)
         raw = info.get("sector")
         if not raw:
@@ -190,12 +248,16 @@ def get_sectors(tickers: tuple[str, ...]) -> dict[str, str]:
 def get_company_names(tickers: tuple[str, ...]) -> dict[str, str]:
     """Short company/fund name per ticker, for display instead of the bare
     ticker symbol. Falls back to the ticker itself if Yahoo doesn't have a
-    name for it (e.g. a fetch failure, or a ticker Yahoo can't resolve)."""
-    names: dict[str, str] = {}
-    for ticker in tickers:
-        info = get_ticker_info(ticker)
-        names[ticker] = info.get("shortName") or info.get("longName") or ticker
-    return names
+    name for it (e.g. a fetch failure, or a ticker Yahoo can't resolve).
+
+    Read from the chart metadata rather than `.info`: same names, but no
+    rate-limit throttle, so every ticker can be fetched concurrently."""
+    def name(ticker: str) -> str:
+        meta = _meta_or_empty(ticker)
+        raw = meta.get("shortName") or meta.get("longName") or ticker
+        return " ".join(raw.split())  # Yahoo pads some names with runs of spaces
+
+    return parallel_map(name, tickers)
 
 
 @cache_data(ttl=3600)
@@ -231,7 +293,7 @@ def get_price_history(ticker: str, period: str = "6mo", start: str | None = None
         df = history[[date_col, "Close"]].rename(columns={date_col: "Date"}).dropna(subset=["Close"])
         df["Date"] = _strip_tz(df["Date"])
 
-        currency = (get_ticker_info(ticker).get("currency") or "USD").upper()
+        currency = _currency(ticker)
         if currency != "USD" and not df.empty:
             start_str = df["Date"].min().strftime("%Y-%m-%d")
             end_str = df["Date"].max().strftime("%Y-%m-%d")
