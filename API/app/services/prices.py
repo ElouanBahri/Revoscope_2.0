@@ -77,6 +77,34 @@ _YAHOO_TO_GICS_SECTOR = {
     "Basic Materials": "Materials",
 }
 
+# Sectors for tickers already known to be in the portfolio, so they skip
+# Yahoo's throttled `.info` lookup entirely (~2s per ticker). That matters on
+# Render's free tier: the in-memory cache is lost every time the service
+# sleeps, so without this every wake-up re-fetched every sector. A ticker's
+# sector essentially never changes; one missing here just falls back to the
+# live lookup. When adding a new holding, add it here too (GICS names, as in
+# ALL_SECTORS above).
+KNOWN_SECTORS: dict[str, str] = {
+    "AAL": "Industrials",
+    "AAPL": "Information Technology",
+    "CMG": "Consumer Discretionary",
+    "CNH": "Industrials",
+    "IMAX": "Communication Services",
+    "JPM": "Financials",
+    "KO": "Consumer Staples",
+    "LMT": "Industrials",
+    "MA": "Financials",
+    "MP": "Materials",
+    "NFLX": "Communication Services",
+    "NVDA": "Information Technology",
+    "SPCX": "Industrials",
+    "TM": "Consumer Discretionary",
+    "TSLA": "Consumer Discretionary",
+    "TSM": "Information Technology",
+    "UBS": "Financials",
+    "USAR": "Materials",
+}
+
 
 def to_yahoo_symbol(ticker: str) -> str:
     """Map a Revolut ticker to the Yahoo Finance symbol it actually resolves
@@ -225,11 +253,12 @@ def get_sectors(tickers: tuple[str, ...]) -> dict[str, str]:
     that failure for 24h would leave it looking broken for a full day with
     no way to retry sooner than that.
     """
+    sectors: dict[str, str] = {t: KNOWN_SECTORS[t] for t in tickers if t in KNOWN_SECTORS}
+    unknown = [t for t in tickers if t not in sectors]
     # The (unthrottled) chart metadata already says whether each ticker is a
     # fund, so ETFs skip the slow, rate-limited `.info` call entirely.
-    metas = parallel_map(_meta_or_empty, tickers)
-    sectors: dict[str, str] = {}
-    for ticker in tickers:
+    metas = parallel_map(_meta_or_empty, unknown)
+    for ticker in unknown:
         instrument_type = (metas[ticker].get("instrumentType") or "").upper()
         if instrument_type in _FUND_QUOTE_TYPES:
             sectors[ticker] = ETF_SECTOR
