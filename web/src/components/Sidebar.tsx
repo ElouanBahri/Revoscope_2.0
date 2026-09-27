@@ -16,6 +16,10 @@ export function Sidebar() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  // Held in memory only — never persisted, so closing the tab forgets it.
+  const [pin, setPin] = useState("");
+  const pinValid = /^\d{8}$/.test(pin);
   const fileInput = useRef<HTMLInputElement>(null);
   const status = useAsync(() => api.status(), [uploadMsg, refreshing]);
 
@@ -23,19 +27,23 @@ export function Sidebar() {
     setUploading(true);
     setUploadMsg(null);
     try {
-      const res = await api.uploadRevolutCsv(file);
+      const res = await api.uploadRevolutCsv(file, pin);
       setUploadMsg(res.detail ?? "Uploaded.");
     } catch (err) {
-      setUploadMsg(`Upload failed: ${err}`);
+      setUploadMsg(`Upload failed: ${err instanceof Error ? err.message : err}`);
     } finally {
       setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
     }
   }
 
   async function onRefresh() {
     setRefreshing(true);
+    setRefreshMsg(null);
     try {
-      await api.refresh();
+      await api.refresh(pin);
+    } catch (err) {
+      setRefreshMsg(`Refresh failed: ${err instanceof Error ? err.message : err}`);
     } finally {
       setTimeout(() => setRefreshing(false), 300);
     }
@@ -67,6 +75,20 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-6 border-t border-ink-primary/10 pt-4">
+        <label className="mb-1 block text-[11px] font-medium text-ink-muted" htmlFor="admin-pin">
+          Admin PIN (owner only)
+        </label>
+        <input
+          id="admin-pin"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={8}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+          placeholder="8 digits"
+          className="mb-2 w-full rounded-lg border border-ink-primary/10 bg-surface px-3 py-2 text-sm tracking-widest text-ink-primary placeholder:tracking-normal placeholder:text-ink-muted"
+        />
         <input
           ref={fileInput}
           type="file"
@@ -76,7 +98,7 @@ export function Sidebar() {
         />
         <button
           onClick={() => fileInput.current?.click()}
-          disabled={uploading}
+          disabled={uploading || !pinValid}
           className="w-full rounded-lg bg-series-1 px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {uploading ? "Uploading…" : "Upload Revolut CSV"}
@@ -85,11 +107,12 @@ export function Sidebar() {
 
         <button
           onClick={onRefresh}
-          disabled={refreshing}
+          disabled={refreshing || !pinValid}
           className="mt-2 w-full rounded-lg border border-ink-primary/10 px-3 py-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-ink-primary/5 disabled:opacity-50"
         >
           {refreshing ? "Refreshing…" : "Refresh live data"}
         </button>
+        {refreshMsg && <p className="mt-2 text-xs leading-snug text-ink-secondary">{refreshMsg}</p>}
       </div>
 
       <div className="mt-auto pt-4 text-[11px] text-ink-muted">

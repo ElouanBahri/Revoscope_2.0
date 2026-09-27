@@ -15,6 +15,18 @@ async function request<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function adminPost(path: string, pin: string, body?: BodyInit) {
+  const res = await fetch(`${BASE}${path}`, { method: "POST", headers: { "X-Admin-Pin": pin }, body });
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((j) => j.detail)
+      .catch(() => res.statusText);
+    throw new ApiError(String(detail));
+  }
+  return res.json();
+}
+
 function qs(params: Record<string, string | string[] | undefined>): string {
   const usp = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -46,13 +58,13 @@ import type {
 
 export const api = {
   status: () => request<DataSourcesStatus>("/datasources/status"),
-  refresh: () => fetch(`${BASE}/datasources/refresh`, { method: "POST" }),
-  uploadRevolutCsv: async (file: File) => {
+  // Upload/refresh change what every visitor sees, so the API requires the
+  // owner's 8-digit admin PIN for them (see API/app/admin.py).
+  refresh: (pin: string) => adminPost("/datasources/refresh", pin),
+  uploadRevolutCsv: (file: File, pin: string) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${BASE}/datasources/revolut/upload`, { method: "POST", body: form });
-    if (!res.ok) throw new ApiError(await res.text());
-    return res.json();
+    return adminPost("/datasources/revolut/upload", pin, form);
   },
 
   overview: () => request<Overview>("/portfolio/overview"),

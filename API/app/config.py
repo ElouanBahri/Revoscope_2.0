@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # exact origins above (the real custom domain, once DNS is live).
     cors_origin_regex: str | None = r"https://.*\.vercel\.app"
 
+    # 8-digit PIN required for upload/refresh (see app/admin.py). Unset =
+    # those actions are disabled. Set it in Render's dashboard / API/.env.
+    admin_pin: str | None = None
+
     # --- Binance -------------------------------------------------------
     binance_api_key: str | None = None
     binance_api_secret: str | None = None

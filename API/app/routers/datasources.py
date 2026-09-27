@@ -3,8 +3,9 @@ equivalent of the old sidebar's file uploader + "Refresh live prices" button.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from ..admin import require_admin
 from ..datasources.base import DataSourceError
 from ..services import bonds, news, prices
 from ..state import app_state
@@ -23,7 +24,7 @@ def get_status():
     }
 
 
-@router.post("/revolut/upload")
+@router.post("/revolut/upload", dependencies=[Depends(require_admin)])
 async def upload_revolut_csv(file: UploadFile = File(...)):
     try:
         contents = await file.read()
@@ -35,7 +36,7 @@ async def upload_revolut_csv(file: UploadFile = File(...)):
     return app_state.revolut.status().__dict__
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(require_admin)])
 def refresh_caches():
     """Clear every live-data cache (prices, sectors, names, news, bond
     lookups) so the next request pulls fresh data — same effect as the old
