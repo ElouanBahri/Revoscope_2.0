@@ -28,6 +28,15 @@ class FetchWarning:
     message: str
 
 
+def _as_utc(df: pd.DataFrame) -> pd.DataFrame:
+    """Sources disagree on timezones (the Revolut CSV is UTC-aware, others
+    may be naive); pandas can't sort a mix of the two, which would break
+    every portfolio request once two such sources are merged. Treat naive
+    timestamps as UTC."""
+    dates = pd.to_datetime(df["date"], utc=True)
+    return df.assign(date=dates)
+
+
 class AppState:
     def __init__(self) -> None:
         self.revolut = RevolutCsvSource()
@@ -71,7 +80,7 @@ class AppState:
             try:
                 df = source.fetch_transactions()
                 if not df.empty:
-                    frames.append(df)
+                    frames.append(_as_utc(df))
             except DataSourceError as exc:
                 warnings.append(FetchWarning(source.name, str(exc)))
 

@@ -41,6 +41,7 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -55,6 +56,7 @@ _GENERATION_IN_PROGRESS = {"1019"}
 _POLL_ATTEMPTS = 10
 _POLL_DELAY_SECONDS = 3.0
 _QTY_EPSILON = 1e-6
+_IBKR_TZ = "America/New_York"
 
 # IBKR listing exchange → Yahoo Finance symbol suffix, for non-US listings
 # (US exchanges need no suffix). Anything unmapped falls back to the bare
@@ -281,7 +283,12 @@ class IBKRFlexSource:
 
         df = pd.DataFrame(rows, columns=TRANSACTION_COLUMNS)
         if not df.empty:
-            df["date"] = pd.to_datetime(df["date"])
+            # Flex times are New York local time; store UTC-aware timestamps
+            # to match the Revolut CSV's, so merged sources sort together.
+            local = pd.to_datetime(df["date"])
+            df["date"] = local.dt.tz_localize(
+                _IBKR_TZ, ambiguous=np.zeros(len(local), dtype=bool), nonexistent="shift_forward"
+            ).dt.tz_convert("UTC")
             df["amount_usd"] = convert_amounts_to_usd(df["amount"], df["currency"], df["date"])
             df["price_usd"] = convert_amounts_to_usd(df["price"], df["currency"], df["date"])
 
@@ -296,7 +303,7 @@ class IBKRFlexSource:
             is_buy = df["type"] == "BUY - MARKET"
             flows = df.loc[~is_buy, "amount_usd"].sum() - df.loc[is_buy, "amount_usd"].sum()
             adjustment = ending_usd - flows
-            start = df["date"].min() if not df.empty else pd.Timestamp.now().normalize()
+            start = df["date"].min() if not df.empty else pd.Timestamp.now(tz="UTC").normalize()
             cash_row = _row(start, None, "CASH TOP-UP", float("nan"), float("nan"), adjustment, "USD")
             cash_row.update(fx_rate=1.0, amount_usd=adjustment)
             df = pd.DataFrame(df.to_dict("records") + [cash_row], columns=TRANSACTION_COLUMNS)
