@@ -96,6 +96,7 @@ KNOWN_SECTORS: dict[str, str] = {
     "MA": "Financials",
     "MP": "Materials",
     "NFLX": "Communication Services",
+    "NIO": "Consumer Discretionary",
     "NVDA": "Information Technology",
     "SPCX": "Industrials",
     "TM": "Consumer Discretionary",
