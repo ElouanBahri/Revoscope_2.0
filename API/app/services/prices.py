@@ -136,11 +136,49 @@ def _strip_tz(dates: pd.Series) -> pd.Series:
 _FETCH_WORKERS = 8
 
 
+_primed = False
+_prime_lock = threading.Lock()
+
+
+def _prime_yahoo_session() -> None:
+    """yfinance fetches a Yahoo cookie/crumb on its very first request. On a
+    fresh process (every Render restart), several threads doing that first
+    request at once race each other and some get rejected — the "couldn't
+    fetch a live price" warning on first load. One plain request first, on
+    its own, sets the session up before the parallel fan-out."""
+    global _primed
+    if _primed:
+        return
+    with _prime_lock:
+        if _primed:
+            return
+        try:
+            yf.Ticker("SPY").history(period="5d")
+        except Exception:
+            pass
+        _primed = True
+
+
+def _with_retry(fn: Callable[[], T], attempts: int = 3) -> T:
+    """Call fn(), retrying on an exception with a short backoff — Yahoo
+    rejects the odd request (rate limiting, session hiccups) that succeeds a
+    moment later."""
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except Exception:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
 def parallel_map(fn: Callable[[str], T], tickers: Iterable[str]) -> dict[str, T]:
     """{ticker: fn(ticker)} with the calls run concurrently."""
     tickers = list(dict.fromkeys(tickers))
     if not tickers:
         return {}
+    _prime_yahoo_session()
     with ThreadPoolExecutor(max_workers=min(_FETCH_WORKERS, len(tickers))) as pool:
         return dict(zip(tickers, pool.map(fn, tickers)))
 
@@ -157,8 +195,11 @@ def _recent_quote(ticker: str) -> tuple[float, dict]:
     """
     yf_ticker = yf.Ticker(to_yahoo_symbol(ticker))
     closes = yf_ticker.history(period="5d")["Close"].dropna()
-    price = float(closes.iloc[-1]) if not closes.empty else float("nan")
-    return price, dict(yf_ticker.history_metadata or {})
+    if closes.empty:
+        # Raise rather than return NaN, so a failed fetch isn't cached for 5
+        # minutes — the next call (or retry) tries again.
+        raise LookupError(f"no recent close for {ticker!r}")
+    return float(closes.iloc[-1]), dict(yf_ticker.history_metadata or {})
 
 
 @cache_data(ttl=86400)
@@ -166,7 +207,7 @@ def get_ticker_meta(ticker: str) -> dict:
     """Chart metadata for one ticker, cached for a day — listing currency,
     instrument type and name essentially never change. Raises (so nothing is
     cached) if Yahoo returned no metadata, letting the next call retry."""
-    meta = _recent_quote(ticker)[1]
+    meta = _with_retry(lambda: _recent_quote(ticker))[1]
     if not meta:
         raise LookupError(f"no chart metadata for {ticker!r}")
     return meta
@@ -185,7 +226,7 @@ def _currency(ticker: str) -> str:
 
 def _live_price_usd(ticker: str) -> float:
     try:
-        native_price = _recent_quote(ticker)[0]
+        native_price = _with_retry(lambda: _recent_quote(ticker))[0]
         rate = get_latest_usd_rate(_currency(ticker))
         return native_price * rate if rate is not None else native_price
     except Exception:
@@ -299,10 +340,21 @@ def get_company_names(tickers: tuple[str, ...]) -> dict[str, str]:
     return parallel_map(name, tickers)
 
 
-@cache_data(ttl=3600)
 def get_price_history(ticker: str, period: str = "6mo", start: str | None = None, interval: str = "1d") -> pd.DataFrame:
     """Close-price history for one ticker in USD, or an empty DataFrame if
-    unavailable. Pass `start` (as 'YYYY-MM-DD') for a fixed start date
+    unavailable — see _price_history below. Failures are retried and never
+    cached (a transient Yahoo rejection used to leave a chart missing that
+    ticker for a full hour)."""
+    try:
+        return _with_retry(lambda: _price_history(ticker, period=period, start=start, interval=interval))
+    except Exception:
+        return pd.DataFrame(columns=["Date", "Close"])
+
+
+@cache_data(ttl=3600)
+def _price_history(ticker: str, period: str = "6mo", start: str | None = None, interval: str = "1d") -> pd.DataFrame:
+    """Close-price history for one ticker in USD; raises if Yahoo returned
+    nothing, so that failure isn't cached. Pass `start` (as 'YYYY-MM-DD') for a fixed start date
     instead of a relative `period` — used for since-investment and beta
     comparisons against a fixed benchmark window. `interval` matches
     yfinance's own strings ("1d", "5m", "15m", "1wk", "1mo", ...) — used for
@@ -317,32 +369,34 @@ def get_price_history(ticker: str, period: str = "6mo", start: str | None = None
     rows since the FX series is daily and each row just carries forward its
     day's rate.
     """
-    try:
-        yf_ticker = yf.Ticker(to_yahoo_symbol(ticker))
-        history = (
-            yf_ticker.history(start=start, interval=interval)
-            if start
-            else yf_ticker.history(period=period, interval=interval)
-        )
-        history = history.reset_index()
-        # Intraday intervals (<1d) come back with the index column named
-        # "Datetime" instead of "Date" — normalize so the rest of this
-        # function (and every caller) doesn't need to know the difference.
-        date_col = "Datetime" if "Datetime" in history.columns else "Date"
-        df = history[[date_col, "Close"]].rename(columns={date_col: "Date"}).dropna(subset=["Close"])
-        df["Date"] = _strip_tz(df["Date"])
+    yf_ticker = yf.Ticker(to_yahoo_symbol(ticker))
+    history = (
+        yf_ticker.history(start=start, interval=interval)
+        if start
+        else yf_ticker.history(period=period, interval=interval)
+    )
+    if history.empty:
+        raise LookupError(f"no price history for {ticker!r}")
+    history = history.reset_index()
+    # Intraday intervals (<1d) come back with the index column named
+    # "Datetime" instead of "Date" — normalize so the rest of this
+    # function (and every caller) doesn't need to know the difference.
+    date_col = "Datetime" if "Datetime" in history.columns else "Date"
+    df = history[[date_col, "Close"]].rename(columns={date_col: "Date"}).dropna(subset=["Close"])
+    df["Date"] = _strip_tz(df["Date"])
 
-        currency = _currency(ticker)
-        if currency != "USD" and not df.empty:
-            start_str = df["Date"].min().strftime("%Y-%m-%d")
-            end_str = df["Date"].max().strftime("%Y-%m-%d")
-            rate_series = get_usd_rate_series(currency, start_str, end_str)
-            if rate_series:
-                rates = pd.Series(rate_series, name="rate")
-                rates.index = pd.to_datetime(rates.index)
-                rates = rates.sort_index().reindex(df["Date"].sort_values().unique(), method="ffill").bfill()
-                df["Close"] = df["Close"] * df["Date"].map(rates)
+    currency = _currency(ticker)
+    if currency != "USD" and not df.empty:
+        start_str = df["Date"].min().strftime("%Y-%m-%d")
+        end_str = df["Date"].max().strftime("%Y-%m-%d")
+        rate_series = get_usd_rate_series(currency, start_str, end_str)
+        if rate_series:
+            rates = pd.Series(rate_series, name="rate")
+            rates.index = pd.to_datetime(rates.index)
+            rates = rates.sort_index().reindex(df["Date"].sort_values().unique(), method="ffill").bfill()
+            df["Close"] = df["Close"] * df["Date"].map(rates)
 
-        return df
-    except Exception:
-        return pd.DataFrame(columns=["Date", "Close"])
+    return df
+
+
+get_price_history.clear = _price_history.clear  # type: ignore[attr-defined]
