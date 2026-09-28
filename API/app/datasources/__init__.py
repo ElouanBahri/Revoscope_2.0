@@ -2,6 +2,7 @@ from .base import DataSource, DataSourceError, DataSourceStatus
 from .revolut_csv import RevolutCsvSource
 from .binance import BinanceSource
 from .ibkr import IBKRSource
+from .ibkr_flex import IBKRFlexSource
 
 __all__ = [
     "DataSource",
@@ -10,4 +11,5 @@ __all__ = [
     "RevolutCsvSource",
     "BinanceSource",
     "IBKRSource",
+    "IBKRFlexSource",
 ]

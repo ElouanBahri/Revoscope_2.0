@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # --- Interactive Brokers -------------------------------------------
     ibkr_gateway_url: str = "https://localhost:5000/v1/api"
     ibkr_account_id: str | None = None  # auto-detected from the gateway session if unset
+    # Flex Web Service (datasources/ibkr_flex.py) — works on the hosted site.
+    ibkr_flex_token: str | None = None
+    ibkr_flex_query_id: str | None = None
 
 
 settings = Settings()

@@ -15,8 +15,9 @@ from pathlib import Path
 import pandas as pd
 
 from .config import settings
-from .datasources import BinanceSource, DataSourceError, IBKRSource, RevolutCsvSource
+from .datasources import BinanceSource, DataSourceError, IBKRFlexSource, IBKRSource, RevolutCsvSource
 from .datasources.base import ConnectionState, TRANSACTION_COLUMNS
+from .services.prices import register_yahoo_symbols
 
 EXAMPLE_CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "example-portfolio.csv"
 
@@ -32,6 +33,7 @@ class AppState:
         self.revolut = RevolutCsvSource()
         self.binance = BinanceSource(settings)
         self.ibkr = IBKRSource(settings)
+        self.ibkr_flex = IBKRFlexSource(settings)
 
     def load_example_portfolio(self) -> None:
         """Called from main.py's startup hook, not from __init__: this does
@@ -43,7 +45,11 @@ class AppState:
             self.revolut.load_example_if_empty(str(EXAMPLE_CSV_PATH))
 
     def sources(self):
-        return [self.revolut, self.binance, self.ibkr]
+        # Flex and the local gateway read the same IBKR account — with a Flex
+        # token configured, the gateway is left out so holdings aren't
+        # counted twice.
+        ibkr = self.ibkr_flex if self.ibkr_flex.configured else self.ibkr
+        return [self.revolut, self.binance, ibkr]
 
     def get_transactions(self) -> tuple[pd.DataFrame, list[FetchWarning]]:
         """Merged transaction log across every connected source. A source
@@ -72,6 +78,7 @@ class AppState:
         if not frames:
             return pd.DataFrame(columns=TRANSACTION_COLUMNS), warnings
 
+        register_yahoo_symbols(self.ibkr_flex.yahoo_symbols())
         combined = pd.concat(frames, ignore_index=True).sort_values("date").reset_index(drop=True)
         return combined, warnings
 

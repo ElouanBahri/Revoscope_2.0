@@ -106,12 +106,21 @@ KNOWN_SECTORS: dict[str, str] = {
 }
 
 
+# Filled at runtime by data sources that know each ticker's listing exchange
+# (IBKR's Flex report does) — TICKER_OVERRIDES above still wins on conflict.
+_SOURCE_SYMBOLS: dict[str, str] = {}
+
+
+def register_yahoo_symbols(mapping: dict[str, str]) -> None:
+    _SOURCE_SYMBOLS.update(mapping)
+
+
 def to_yahoo_symbol(ticker: str) -> str:
     """Map a Revolut ticker to the Yahoo Finance symbol it actually resolves
     under (see TICKER_OVERRIDES above). Public so other modules needing a
     Yahoo-qualified symbol — e.g. news.py's per-ticker news lookup — stay
     consistent with prices/sector/name lookups instead of re-deriving it."""
-    return TICKER_OVERRIDES.get(ticker, ticker)
+    return TICKER_OVERRIDES.get(ticker) or _SOURCE_SYMBOLS.get(ticker, ticker)
 
 
 def _strip_tz(dates: pd.Series) -> pd.Series:

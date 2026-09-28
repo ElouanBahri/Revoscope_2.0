@@ -55,4 +55,5 @@ def refresh_caches():
         bonds.get_current_treasury_yield_curve,
     ]:
         fn.clear()
+    app_state.ibkr_flex.refresh()
     return {"ok": True}

@@ -21,8 +21,17 @@ const SETUP_NOTES: Record<string, { title: string; steps: string[] }> = {
       "Restart the API — it reads .env once on startup.",
     ],
   },
-  ibkr: {
+  ibkr_flex: {
     title: "Interactive Brokers",
+    steps: [
+      "Client Portal → Performance & Reports → Flex Queries: create an Activity Flex Query with Trades, Open Positions, Cash Transactions and Cash Report (XML, last 365 days).",
+      "Flex Web Service Configuration → enable it and generate a token. The token is read-only: it can download that report and nothing else.",
+      "Set IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID in the API's environment (Render dashboard, or API/.env locally).",
+      "IBKR regenerates the report about once a day, so trades can lag by up to a day; prices are still live.",
+    ],
+  },
+  ibkr: {
+    title: "Interactive Brokers (local gateway)",
     steps: [
       "Download and start IBKR's Client Portal Gateway (a small local Java process).",
       "Open https://localhost:5000 in a browser and log in there — this app never sees your IBKR credentials or 2FA.",
