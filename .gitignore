@@ -7,6 +7,7 @@ API/.env
 # Node / frontend
 web/node_modules/
 web/dist/
+*.tsbuildinfo
 
 # OS
 .DS_Store
